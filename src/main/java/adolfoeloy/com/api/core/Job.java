@@ -13,6 +13,5 @@ public abstract class Job<T, R> {
         this.inputSource = inputSource;
     }
 
-    public abstract JobResult<R> execute();
-
+    protected abstract R execute();
 }

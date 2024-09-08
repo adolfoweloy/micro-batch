@@ -1,9 +1,8 @@
 package adolfoeloy.com;
 
+import adolfoeloy.com.api.core.Batch;
 import adolfoeloy.com.api.core.Job;
 import adolfoeloy.com.api.core.JobExecutor;
-import adolfoeloy.com.api.core.JobResult;
-import adolfoeloy.com.api.serviceprovider.Batch;
 import adolfoeloy.com.api.serviceprovider.BatchProcessor;
 
 import java.time.Duration;
@@ -40,10 +39,10 @@ public class DefaultJobExecutor implements JobExecutor<String, String> {
     }
 
 
-    @Override
-    public JobResult<String> submitSingle(Job<String, String> job) {
-        return job.execute();
-    }
+//    @Override
+//    public JobResult<String> submitSingle(Job<String, String> job) {
+//        return job.execute();
+//    }
 
     @Override
     public void submit(Job<String, String> job) {

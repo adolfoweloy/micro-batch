@@ -1,15 +1,17 @@
 package adolfoeloy.com;
 
+import adolfoeloy.com.api.core.Batch;
 import adolfoeloy.com.api.core.InputSource;
 import adolfoeloy.com.api.core.Job;
 import adolfoeloy.com.api.core.JobExecutor;
 import adolfoeloy.com.api.core.JobResult;
-import adolfoeloy.com.api.serviceprovider.Batch;
+import adolfoeloy.com.api.core.JobResultStatus;
 import adolfoeloy.com.api.serviceprovider.BatchProcessor;
 import net.jodah.concurrentunit.Waiter;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
@@ -22,17 +24,22 @@ public class DefaultJobExecutorTest {
     private final int BATCH_SIZE = 2;
 
     @Test
-    void submitSingle_should_process_the_job_immediately_and_return_its_result() {
+    void submitSingle_should_process_the_job_immediately_and_return_its_result()
+            throws InterruptedException, TimeoutException {
         // Given
-        var underTest = getExecutor(BATCH_SIZE, new ConcurrentLinkedQueue<>());
+        var resultCollection = new ConcurrentLinkedQueue<JobResult<String>>();
+        var underTest = getExecutor(BATCH_SIZE, resultCollection);
 
         // When
         underTest.start();
-        var result = underTest.submitSingle(new MyTestJob(() -> "Running single job"));
+        underTest.submit(new MyTestJob(() -> "Running single job"));
         underTest.shutdown();
 
         // Then
-        assertThat(result).isEqualTo(new JobResult<>("Running single job"));
+        waiter.await(3, TimeUnit.SECONDS, 1);
+        assertThat(resultCollection).containsExactly(
+                new JobResult<>(Optional.of("Running single job"), JobResultStatus.SUCCESS)
+        );
     }
 
     @Test
@@ -40,7 +47,7 @@ public class DefaultJobExecutorTest {
             throws InterruptedException, TimeoutException {
 
         // Given
-        var resultCollection = new ConcurrentLinkedQueue<String>();
+        var resultCollection = new ConcurrentLinkedQueue<JobResult<String>>();
         var executor = getExecutor(BATCH_SIZE, resultCollection);
 
         // When
@@ -58,7 +65,34 @@ public class DefaultJobExecutorTest {
         assertThat(resultCollection).hasSize(expectedJobs);
     }
 
-    private JobExecutor<String, String> getExecutor(int batchSize, Queue<String> resultCollection) {
+    @Test
+    void submit_should_handle_jobs_that_fail_without_stopping_processing_other_successful_jobs()
+            throws InterruptedException, TimeoutException {
+
+        // Given
+        var resultCollection = new ConcurrentLinkedQueue<JobResult<String>>();
+        var executor = getExecutor(BATCH_SIZE, resultCollection);
+
+        // When
+        executor.start();
+        executor.submit(new MyTestJob(() -> { throw new RuntimeException("Oops!"); }));
+        executor.submit(new MyTestJob(() -> "Hello " + System.currentTimeMillis()));
+        executor.submit(new MyTestJob(() -> "Hello " + System.currentTimeMillis()));
+        executor.shutdown();
+
+        // Then
+        var expectedBatches = 2;
+        waiter.await(3, TimeUnit.SECONDS, expectedBatches);
+
+        var statusesFound = resultCollection.stream().map(JobResult::status);
+        assertThat(statusesFound).containsExactly(
+                JobResultStatus.FAILURE,
+                JobResultStatus.SUCCESS,
+                JobResultStatus.SUCCESS
+        );
+    }
+
+    private JobExecutor<String, String> getExecutor(int batchSize, Queue<JobResult<String>> resultCollection) {
         return new DefaultJobExecutor(
                 batchSize,
                 new MyTestBatchProcessor(waiter, resultCollection),
@@ -72,20 +106,21 @@ public class DefaultJobExecutorTest {
         }
 
         @Override
-        public JobResult<String> execute() {
-            return new JobResult<>(inputSource.read());
+        public String execute() {
+            return inputSource.read();
         }
     }
 
     private record MyTestBatchProcessor(
             Waiter waiter,
-            Queue<String> resultCollection
+            Queue<JobResult<String>> resultCollection
     ) implements BatchProcessor<String, String> {
 
         @Override
         public void processBatch(Batch<String, String> batch) {
-            // collect the output of each job that is operating on a given input function
-            batch.jobs().forEach(job -> resultCollection.add(job.execute().result()));
+            resultCollection.addAll(
+                batch.process().results()
+            );
 
             // resume after each batch is processed
             waiter.resume();

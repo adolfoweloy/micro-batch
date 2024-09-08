@@ -11,7 +11,7 @@ public interface JobExecutor<T, R> {
      * @param job the job to be executed
      * @return the result of the job
      */
-    JobResult<R> submitSingle(Job<T, R> job);
+//    JobResult<R> submitSingle(Job<T, R> job);
 
     /**
      * Allow clients to submit a Job for execution in batches.
