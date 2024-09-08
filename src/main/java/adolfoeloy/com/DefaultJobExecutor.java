@@ -51,7 +51,9 @@ public class DefaultJobExecutor implements JobExecutor<String, String> {
                 try {
                     Thread.sleep(frequencyMilliseconds.toMillis());
 
-                    getBatches().forEach(batchProcessor::processBatch);
+                    getBatches()
+                            .parallelStream()
+                            .forEach(batchProcessor::processBatch);
 
                     var msg = message.poll();
                     if (msg != null)  {
