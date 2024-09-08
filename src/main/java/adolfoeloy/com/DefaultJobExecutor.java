@@ -11,6 +11,9 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+/**
+ * Default implementation of the JobExecutor interface that processes strings.
+ */
 public class DefaultJobExecutor implements JobExecutor<String, String> {
 
     private final int batchSize;
