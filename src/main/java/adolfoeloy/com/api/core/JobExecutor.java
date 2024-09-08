@@ -7,13 +7,6 @@ package adolfoeloy.com.api.core;
  */
 public interface JobExecutor<T, R> {
     /**
-     * Allow clients to submit a single Job for immediate execution.
-     * @param job the job to be executed
-     * @return the result of the job
-     */
-//    JobResult<R> submitSingle(Job<T, R> job);
-
-    /**
      * Allow clients to submit a Job for execution in batches.
      * @param job the job to be executed
      */

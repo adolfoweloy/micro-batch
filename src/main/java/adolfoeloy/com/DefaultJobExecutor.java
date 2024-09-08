@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Semaphore;
 
 public class DefaultJobExecutor implements JobExecutor<String, String> {
 
@@ -20,7 +19,6 @@ public class DefaultJobExecutor implements JobExecutor<String, String> {
     private final Queue<Job<String, String>> jobQueue = new ConcurrentLinkedQueue<>();
     private final Queue<Message> message = new ConcurrentLinkedQueue<>();
     private final BatchProcessor<String, String> batchProcessor;
-    private final Semaphore semaphore = new Semaphore(1);
 
     private enum Message {
         STOP,
@@ -38,22 +36,9 @@ public class DefaultJobExecutor implements JobExecutor<String, String> {
         this.frequencyMilliseconds = frequencyMilliseconds;
     }
 
-
-//    @Override
-//    public JobResult<String> submitSingle(Job<String, String> job) {
-//        return job.execute();
-//    }
-
     @Override
     public void submit(Job<String, String> job) {
-        try {
-            semaphore.acquire();
-            jobQueue.add(job);
-            semaphore.release();
-        } catch (InterruptedException e) {
-            System.out.println("thread interrupted by Adolfo");
-            throw new RuntimeException(e);
-        }
+        jobQueue.add(job);
     }
 
     @Override
@@ -78,17 +63,19 @@ public class DefaultJobExecutor implements JobExecutor<String, String> {
         }).start();
     }
 
+    /**
+     * Retrieves all batches from the job queue.
+     */
     private List<Batch<String, String>> getBatches() throws InterruptedException {
-        semaphore.acquire();
+        var batches = new ArrayList<Batch<String, String>>();
 
-        var result = new ArrayList<Batch<String, String>>();
-        while (!jobQueue.isEmpty()) {
-            result.add(getBatch());
+        synchronized (jobQueue) {
+            while (!jobQueue.isEmpty()) {
+                batches.add(getBatch());
+            }
         }
 
-        semaphore.release();
-
-        return result;
+        return batches;
     }
 
     private Batch<String, String> getBatch() {
