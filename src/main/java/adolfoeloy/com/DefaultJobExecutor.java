@@ -97,5 +97,13 @@ public class DefaultJobExecutor implements JobExecutor<String, String> {
     @Override
     public void shutdown() {
         message.add(Message.STOP);
+        while (!jobQueue.isEmpty()) {
+            // I could add a timeout to shut-down so this loop doesn't keep running indefinitely.
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 }

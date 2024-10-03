@@ -11,6 +11,7 @@ import net.jodah.concurrentunit.Waiter;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -85,8 +86,49 @@ public class DefaultJobExecutorTest {
         waiter.await(3, TimeUnit.SECONDS, expectedBatches);
 
         var statusesFound = resultCollection.stream().map(JobResult::status);
-        assertThat(statusesFound).containsExactly(
+        assertThat(statusesFound).containsExactlyInAnyOrder(
                 JobResultStatus.FAILURE,
+                JobResultStatus.SUCCESS,
+                JobResultStatus.SUCCESS
+        );
+    }
+
+    @Test
+    void shutdown_should_wait_all_pending_jobs_to_finish_before_closing()
+            throws InterruptedException, TimeoutException {
+
+        // Given
+        var resultCollection = new ConcurrentLinkedQueue<JobResult<String>>();
+        var executor = getExecutor(BATCH_SIZE, resultCollection);
+
+        // When
+        executor.start();
+        executor.submit(new MyTestJob(() -> {
+            Thread.sleep(1000);
+            return "Hello " + System.currentTimeMillis();
+        }));
+        executor.submit(new MyTestJob(() -> {
+            Thread.sleep(2000);
+            return "Hello " + System.currentTimeMillis();
+        }));
+        executor.submit(new MyTestJob(() -> {
+            Thread.sleep(1000);
+            return "Hello " + System.currentTimeMillis();
+        }));
+        var beforeShutdown = Instant.now().getEpochSecond();
+        executor.shutdown();
+        var afterShutdown = Instant.now().getEpochSecond();
+
+        // if seconds between is 0, it means that shutdown indeed didn't wait.
+        assertThat(afterShutdown - beforeShutdown).isBetween(1L, 3L);
+
+        // Then
+        var expectedBatches = 2;
+        waiter.await(5, TimeUnit.SECONDS, expectedBatches);
+
+        var statusesFound = resultCollection.stream().map(JobResult::status);
+        assertThat(statusesFound).containsExactlyInAnyOrder(
+                JobResultStatus.SUCCESS,
                 JobResultStatus.SUCCESS,
                 JobResultStatus.SUCCESS
         );
@@ -106,7 +148,7 @@ public class DefaultJobExecutorTest {
         }
 
         @Override
-        public String execute() {
+        public String execute() throws InterruptedException {
             return inputSource.read();
         }
     }

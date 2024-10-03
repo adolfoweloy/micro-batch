@@ -8,6 +8,6 @@ package adolfoeloy.com.api.core;
  */
 public interface InputSource<T> {
 
-    T read();
+    T read() throws InterruptedException;
 
 }
